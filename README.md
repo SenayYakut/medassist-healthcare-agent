@@ -2,13 +2,64 @@
 
 **Elastic x Contextual AI Hack Night | Challenge 2: Build Your Own Agent**
 
-MedAssist is an AI-powered healthcare research assistant that helps clinicians, researchers, and patients navigate medical literature, clinical guidelines, and health information. It provides evidence-based answers grounded in real healthcare documents, with source citations for every response.
+MedAssist is an AI-powered healthcare research assistant that helps clinicians, researchers, and patients navigate medical literature, clinical guidelines, and health information. Unlike general-purpose LLMs that rely on stale training data, MedAssist uses **up-to-date documents** as its knowledge source — every answer is grounded in real healthcare literature with source citations.
+
+---
+
+## The Problem
+
+- Medical guidelines are **thousands of pages long** across dozens of sources — NIH, CDC, WHO
+- Doctors don't have time to read them all during patient care
+- General AI chatbots (ChatGPT, etc.) **hallucinate medical facts** with no sources and rely on outdated training data
+- When new guidelines are published, LLMs don't know about them until they're retrained
+
+## The Solution
+
+MedAssist is a **RAG (Retrieval-Augmented Generation) pipeline** that:
+- Ingests the **latest** healthcare documents directly — no waiting for model retraining
+- Answers questions **only from the uploaded documents**, not from the model's training data
+- **Cites every claim** with the exact document name and page number
+- Supports **follow-up questions** with conversation memory
+- Includes **medical disclaimers** automatically
+
+### Why RAG Over a Regular LLM?
+
+| | Regular LLM (ChatGPT) | MedAssist (RAG) |
+|---|---|---|
+| **Data freshness** | Frozen at training cutoff | Upload new PDFs anytime — instant updates |
+| **Sources** | No citations, no way to verify | Every answer cites document + page |
+| **Hallucination** | Makes up facts confidently | Only answers from retrieved documents |
+| **Customization** | Same model for everyone | Your documents, your prompts, your agent |
+| **Patient data** | Can't securely use private data | Enterprise datastores with access controls |
+
+---
+
+## Future Vision: Patient-Specific Recommendations
+
+Today MedAssist searches clinical guidelines. But the same architecture scales to **personalized medicine**:
+
+```
+Current (built tonight):
+  Guidelines (NIH, CDC, WHO)  -->  Datastore  -->  General recommendations
+
+Future (enterprise deployment):
+  Guidelines + Patient Records  -->  Datastore  -->  Personalized recommendations
+                                                      for a specific patient
+```
+
+A hospital could add:
+- **Lab results** — MedAssist flags abnormal values and recommends next steps per guidelines
+- **Medication lists** — checks for drug interactions against pharmacovigilance data
+- **Radiology reports** — cross-references findings with diagnostic criteria
+- **Medical histories** — provides treatment recommendations tailored to the patient
+
+Patient data requires HIPAA compliance and strict access controls. Contextual AI's enterprise platform supports private datastores with role-based access, enabling secure deployment without patient data leaving the hospital's environment.
 
 ---
 
 ## How It Works
 
-MedAssist is a **RAG (Retrieval-Augmented Generation) agent** built on the [Contextual AI](https://contextual.ai) platform. Here's the pipeline:
+MedAssist is built on the [Contextual AI](https://contextual.ai) platform — an enterprise RAG platform that handles document ingestion, semantic search, reranking, and grounded generation in one stack.
 
 ```
 User Question
@@ -53,9 +104,38 @@ User Question
 
 - **Agent Composer**: A YAML-based workflow engine that defines multi-step pipelines. Our agent uses three steps: (1) capture the query, (2) research with multiple search passes, (3) generate a cited response.
 
-- **Reranker**: After initial retrieval returns 30 candidate passages, a reranker model (`ctxl-rerank-v2`) scores them for relevance and keeps the top 10. This dramatically improves answer quality.
+- **Reranker**: After initial retrieval returns 30 candidate passages, Contextual AI's reranker model (`ctxl-rerank-v2`) scores them for relevance and keeps the top 10. This dramatically improves answer quality.
 
 - **Multi-turn Conversations**: The agent tracks `conversation_id` so follow-up questions retain context from previous exchanges.
+
+---
+
+## Healthcare Documents
+
+The agent's knowledge base includes authoritative medical literature from:
+
+| Document | Source | Topic |
+|----------|--------|-------|
+| JNC7 Hypertension Guidelines | NIH/NHLBI | Blood pressure classification, treatment algorithms |
+| NHLBI Lifestyle & Cardiovascular Risk | NIH/NHLBI | Diet, sodium, exercise effects on heart health |
+| HHS Physical Activity Guidelines | US HHS | Federal exercise recommendations for all ages |
+| CDC Chronic Disease Surveillance | CDC | Public health monitoring via electronic health records |
+
+New documents can be uploaded at any time — the agent's knowledge updates instantly after ingestion.
+
+---
+
+## Demo Prompts
+
+Try these in order at [app.contextual.ai](https://app.contextual.ai):
+
+| # | Category | Prompt |
+|---|----------|--------|
+| 1 | Clinical Guidelines | "What are the current blood pressure classification levels and treatment recommendations according to the JNC7 guidelines?" |
+| 2 | Lifestyle & Prevention | "What lifestyle modifications are recommended to reduce cardiovascular risk, and what does the evidence say about their effectiveness?" |
+| 3 | Follow-up (same chat) | "How much physical activity is recommended per week, and does it differ by age group?" |
+| 4 | Clinical Scenario | "A 55-year-old patient has a blood pressure of 152/95 and a BMI of 31. What treatment approach would the guidelines recommend?" |
+| 5 | Public Health | "What role do electronic health records play in chronic disease surveillance according to the CDC?" |
 
 ---
 
@@ -98,16 +178,27 @@ medassist-healthcare-agent/
 
 ---
 
-## Healthcare Documents
+## How the Prompts Work
 
-The agent's knowledge base includes authoritative medical literature from:
+The agent uses a carefully designed system prompt with three layers:
 
-| Document | Source | Topic |
-|----------|--------|-------|
-| JNC7 Hypertension Guidelines | NIH/NHLBI | Blood pressure classification, treatment algorithms |
-| NHLBI Lifestyle & Cardiovascular Risk | NIH/NHLBI | Diet, sodium, exercise effects on heart health |
-| HHS Physical Activity Guidelines | US HHS | Federal exercise recommendations for all ages |
-| CDC Chronic Disease Surveillance | CDC | Public health monitoring via electronic health records |
+### Identity
+Defines who MedAssist is — a healthcare research assistant that is evidence-based, careful, accessible, and responsible. This shapes every response.
+
+### Research Guidelines
+Tells the agent *when* and *how* to search:
+- Search when users ask about conditions, treatments, drugs, or guidelines
+- Use broad-to-narrow search strategy
+- Cross-reference multiple sources
+- Don't search for casual conversation
+
+### Response Guidelines
+Controls the output format:
+1. Start with a direct answer
+2. Cite specific sources with document name and page
+3. Use bullet points for key findings
+4. Note evidence limitations
+5. Add a medical disclaimer
 
 ---
 
@@ -177,19 +268,16 @@ python upload_healthcare_docs.py
 python query_agent.py <AGENT_ID>
 ```
 
-Type questions like:
-- "What are the recommended blood pressure targets for adults?"
-- "Summarize the evidence on physical activity and cardiovascular risk"
-- "What lifestyle interventions help prevent chronic disease?"
-
-Type `new` to start a fresh conversation, `quit` to exit.
-
 **Demo mode** (for recording your submission):
 ```bash
 python query_agent.py <AGENT_ID> --demo
 ```
 
-### 4. Agent Composer (Optional - GUI)
+### 4. Demo in Browser
+
+Go to [app.contextual.ai](https://app.contextual.ai), click **Agents**, and open **Healthcare Research Assistant** to chat directly in the web UI.
+
+### 5. Agent Composer (Optional - GUI)
 
 For the advanced multi-step workflow:
 1. Go to [app.contextual.ai](https://app.contextual.ai)
@@ -198,49 +286,14 @@ For the advanced multi-step workflow:
 
 ---
 
-## How the Prompts Work
-
-The agent uses a carefully designed system prompt with three layers:
-
-### Identity
-Defines who MedAssist is - a healthcare research assistant that is evidence-based, careful, accessible, and responsible. This shapes every response.
-
-### Research Guidelines
-Tells the agent *when* and *how* to search:
-- Search when users ask about conditions, treatments, drugs, or guidelines
-- Use broad-to-narrow search strategy
-- Cross-reference multiple sources
-- Don't search for casual conversation
-
-### Response Guidelines
-Controls the output format:
-1. Start with a direct answer
-2. Cite specific sources with document name and page
-3. Use bullet points for key findings
-4. Note evidence limitations
-5. Add a medical disclaimer
-
----
-
-## Example Queries
-
-| Category | Query |
-|----------|-------|
-| Clinical Guidelines | "What are the current recommended screening guidelines for common chronic diseases?" |
-| Treatment Options | "What are the evidence-based treatment approaches for managing Type 2 diabetes?" |
-| Drug Information | "What are the most important drug interactions that clinicians should be aware of?" |
-| Research Synthesis | "Summarize the latest research findings on preventive care and lifestyle interventions." |
-| Differential Diagnosis | "A patient presents with fatigue, weight gain, and cold intolerance. What conditions should be considered?" |
-
----
-
-## Tech Stack
+## Built With
 
 - **Platform**: [Contextual AI](https://contextual.ai) - Enterprise RAG agent platform
 - **LLM**: Claude Sonnet 4.5 (via Vertex AI)
 - **Reranker**: ctxl-rerank-v2-instruct-multilingual
 - **SDK**: [contextual-client](https://docs.contextual.ai/sdks/python) (Python)
-- **Documents**: WHO, NIH, CDC authoritative healthcare literature
+- **Documents**: NIH, CDC, HHS authoritative healthcare literature
+- **Build Method**: API (Python SDK) — built entirely from scratch, no templates
 
 ---
 
