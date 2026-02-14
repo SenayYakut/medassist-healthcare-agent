@@ -5,3 +5,5 @@ __pycache__/
 .claude/
 healthcare_docs/
 contextual-elastic-hack-night/
+profile-repo/
+.DS_Store
